@@ -69,7 +69,7 @@ ZedCamera::ZedCamera(const rclcpp::NodeOptions & options)
 : Node("zed_node", options),
   mDepthDisabled(false),                   // 530
   mStreamingServerRequired(false),         // 647
-  mQos(QOS_QUEUE_SIZE),                    // 693
+  mQos(rclcpp::QoS(QOS_QUEUE_SIZE).best_effort()),                    // 693
   mThreadStop(false),                      // 954
   mNodeDeinitialized(false),               // 955
   mStreamingServerRunning(false),          // 1020
