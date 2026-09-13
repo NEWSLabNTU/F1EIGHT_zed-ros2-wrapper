@@ -81,14 +81,49 @@ endif()
 
 #############################################
 # Dependencies
-find_package(ZED REQUIRED)
+#
+# NOT REQUIRED, deliberately. This package needs the ZED SDK and a CUDA
+# toolkit, and neither is installed by default: the ZED SDK is an opt-in setup
+# step, and CUDA comes from the host image or JetPack rather than from this
+# project's setup. A hard find_package therefore failed the WHOLE workspace
+# build on any machine without them -- which is every clean install, and every
+# laptop in a classroom -- with
+#
+#   Could not find a package configuration file provided by "ZED"
+#
+# and colcon aborted every package queued behind it.
+#
+# So the package skips itself instead, the way cuda_pointcloud_filters and
+# blickfeld_driver do. Nothing else in the workspace needs it: zed_wrapper,
+# which carries the URDF the simulation TF path xacros, builds without the SDK
+# and is unaffected.
+#
+# With a ZED camera: install the SDK (`./setup.sh --rerun zed-sdk`) and a CUDA
+# toolkit, and this package builds as before.
+find_package(ZED QUIET)
 
 exec_program(uname ARGS -p OUTPUT_VARIABLE CMAKE_SYSTEM_NAME2)
 if(CMAKE_SYSTEM_NAME2 MATCHES "aarch64") # Jetson TX
     set(CUDA_USE_STATIC_CUDA_RUNTIME OFF)
 endif()
 
-find_package(CUDA REQUIRED)
+find_package(CUDA QUIET)
+
+if(NOT ZED_FOUND OR NOT CUDA_FOUND)
+    set(_zed_missing "")
+    if(NOT ZED_FOUND)
+        set(_zed_missing "${_zed_missing} the ZED SDK")
+    endif()
+    if(NOT CUDA_FOUND)
+        set(_zed_missing "${_zed_missing} a CUDA toolkit")
+    endif()
+    message(WARNING
+        "Skipping ${PROJECT_NAME}: missing${_zed_missing}. "
+        "This package is only needed to drive a ZED camera; zed_wrapper and "
+        "the rest of the workspace are unaffected.")
+    ament_package()
+    return()
+endif()
 
 set(DEPENDENCIES
     rclcpp
