@@ -126,15 +126,25 @@ find_package(CUDAToolkit QUIET)
 if(NOT ZED_FOUND OR NOT CUDAToolkit_FOUND)
     set(_zed_missing "")
     if(NOT ZED_FOUND)
-        set(_zed_missing "${_zed_missing} the ZED SDK")
+        set(_zed_missing "the ZED SDK")
     endif()
     if(NOT CUDAToolkit_FOUND)
-        set(_zed_missing "${_zed_missing} a CUDA toolkit")
+        if(_zed_missing)
+            set(_zed_missing "${_zed_missing} and a CUDA toolkit")
+        else()
+            set(_zed_missing "a CUDA toolkit")
+        endif()
     endif()
     message(WARNING
-        "Skipping ${PROJECT_NAME}: missing${_zed_missing}. "
+        "Skipping ${PROJECT_NAME}: missing ${_zed_missing}. "
         "This package is only needed to drive a ZED camera; zed_wrapper and "
         "the rest of the workspace are unaffected.")
+    # ament_cmake is found further down this file, below the point we return
+    # from, so ament_package() is not defined yet here. Find it explicitly:
+    # without this the skip itself fails the build with
+    # `Unknown CMake command "ament_package"`, which is a worse error than the
+    # one it was meant to replace.
+    find_package(ament_cmake REQUIRED)
     ament_package()
     return()
 endif()
