@@ -91,7 +91,24 @@ endif()
 if(CMAKE_VERSION VERSION_GREATER_EQUAL "3.28")
   cmake_policy(SET CMP0153 OLD)
 endif()
-find_package(ZED REQUIRED)
+# QUIET, not REQUIRED, deliberately. This package needs the ZED SDK and a CUDA
+# toolkit, and neither is installed by default: the ZED SDK is an opt-in setup
+# step (and a manual download -- Stereolabs publishes no apt package), and CUDA
+# comes from the host image or JetPack rather than from this project's setup. A
+# hard find_package therefore failed the WHOLE workspace build on any machine
+# without them -- which is every clean install, and every laptop in a classroom
+# -- with
+#
+#   Could not find a package configuration file provided by "ZED"
+#
+# and colcon aborted every package queued behind it.
+#
+# So the package skips itself instead, the way cuda_pointcloud_filters and
+# blickfeld_driver do. Nothing else in the workspace needs it: zed_wrapper,
+# which carries the URDF the simulation TF path xacros, builds without the SDK
+# and is unaffected. The skip is reported below, once the CUDA probe has also
+# had its say, so the message can name everything that is missing at once.
+find_package(ZED QUIET)
 if(CMAKE_VERSION VERSION_GREATER_EQUAL "3.27")
   cmake_policy(SET CMP0146 NEW)
 endif()
@@ -104,7 +121,24 @@ if(CMAKE_SYSTEM_NAME2 MATCHES "aarch64") # Jetson TX
     set(CUDA_USE_STATIC_CUDA_RUNTIME OFF)
 endif()
 
-find_package(CUDAToolkit REQUIRED)
+find_package(CUDAToolkit QUIET)
+
+if(NOT ZED_FOUND OR NOT CUDAToolkit_FOUND)
+    set(_zed_missing "")
+    if(NOT ZED_FOUND)
+        set(_zed_missing "${_zed_missing} the ZED SDK")
+    endif()
+    if(NOT CUDAToolkit_FOUND)
+        set(_zed_missing "${_zed_missing} a CUDA toolkit")
+    endif()
+    message(WARNING
+        "Skipping ${PROJECT_NAME}: missing${_zed_missing}. "
+        "This package is only needed to drive a ZED camera; zed_wrapper and "
+        "the rest of the workspace are unaffected.")
+    ament_package()
+    return()
+endif()
+
 set(CUDA_INCLUDE_DIRS ${CUDAToolkit_INCLUDE_DIRS})
 set(CUDA_LIBRARIES CUDA::cudart)
 set(CUDA_LIBRARY_DIRS ${CUDAToolkit_LIBRARY_DIR})
