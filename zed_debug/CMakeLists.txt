@@ -78,7 +78,20 @@ endif()
 if(CMAKE_VERSION VERSION_GREATER_EQUAL "3.28")
   cmake_policy(SET CMP0153 OLD)
 endif()
-find_package(ZED REQUIRED)
+# QUIET, not REQUIRED, for the same reason zed_components is: neither the ZED
+# SDK nor a CUDA toolkit is installed by default, and a hard find_package here
+# failed the WHOLE workspace build with
+#
+#   Could not find a package configuration file provided by "ZED"
+#
+# taking 19 unrelated packages down with it as colcon aborted everything queued
+# behind it. zed_components learned to skip itself; this package did not, so it
+# reproduced the identical failure one package later -- on the container build,
+# which is the clean machine both skips exist for.
+#
+# zed_debug is a debugging executable for a ZED camera. A machine with no ZED
+# SDK has no ZED camera to debug, so skipping it costs nothing.
+find_package(ZED QUIET)
 if(CMAKE_VERSION VERSION_GREATER_EQUAL "3.27")
   cmake_policy(SET CMP0146 NEW)
 endif()
@@ -91,7 +104,33 @@ if(CMAKE_SYSTEM_NAME2 MATCHES "aarch64") # Jetson TX
     set(CUDA_USE_STATIC_CUDA_RUNTIME OFF)
 endif()
 
-find_package(CUDAToolkit REQUIRED)
+find_package(CUDAToolkit QUIET)
+
+if(NOT ZED_FOUND OR NOT CUDAToolkit_FOUND)
+    set(_zed_missing "")
+    if(NOT ZED_FOUND)
+        set(_zed_missing "the ZED SDK")
+    endif()
+    if(NOT CUDAToolkit_FOUND)
+        if(_zed_missing)
+            set(_zed_missing "${_zed_missing} and a CUDA toolkit")
+        else()
+            set(_zed_missing "a CUDA toolkit")
+        endif()
+    endif()
+    message(WARNING
+        "Skipping ${PROJECT_NAME}: missing ${_zed_missing}. "
+        "This package only debugs a ZED camera; zed_wrapper and the rest of "
+        "the workspace are unaffected.")
+    # ament_cmake is not found anywhere above this point, so ament_package() is
+    # undefined here. Without this the skip fails in its own right with
+    # `Unknown CMake command "ament_package"` -- the mistake zed_components
+    # made first.
+    find_package(ament_cmake REQUIRED)
+    ament_package()
+    return()
+endif()
+
 set(CUDA_INCLUDE_DIRS ${CUDAToolkit_INCLUDE_DIRS})
 set(CUDA_LIBRARIES CUDA::cudart)
 set(CUDA_LIBRARY_DIRS ${CUDAToolkit_LIBRARY_DIR})
